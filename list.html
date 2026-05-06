@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh Sách Kết Quả Đánh Giá</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f8fafc;
+            --text-main: #1e293b;
+            --border: #e2e8f0;
+            --text-muted: #64748b;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        h1 { margin: 0; color: var(--primary); }
+
+        .btn-export {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+            transition: all 0.2s;
+        }
+
+        .btn-export:hover {
+            background-color: #059669;
+            transform: translateY(-2px);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            min-width: 800px;
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        tr:hover { background-color: #f8fafc; }
+
+        .checkbox-cell { text-align: center; }
+        
+        .level-badge {
+            background-color: #eff6ff;
+            color: #2563eb;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: inline-block;
+        }
+
+        .btn-view {
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn-view:hover {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Modal Styles from index.html */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.75);
+            z-index: 100;
+            overflow-y: auto;
+            padding: 2rem 1rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: white;
+            max-width: 900px;
+            margin: 0 auto;
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            font-size: 2rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close-btn:hover { color: var(--danger); }
+
+        .results-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .results-header h2 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        .results-table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 2.5rem;
+        }
+
+        table.results-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            min-width: 700px;
+        }
+
+        table.results-table th, table.results-table td {
+            padding: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        table.results-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .col-staff { color: #2563eb; font-weight: 600; }
+        .col-supervisor { color: #dc2626; font-weight: 600; }
+        .col-leader { color: #d97706; font-weight: 600; }
+        .col-senior { color: #16a34a; font-weight: 600; }
+        .col-candidate { color: var(--primary); font-weight: 700; background-color: #eff6ff; font-size: 1.1rem; }
+        
+        .row-total {
+            font-weight: 700;
+            background-color: #f8fafc;
+        }
+        
+        .row-total td {
+            font-size: 1.1rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            .container { padding: 1rem; }
+            .header { flex-direction: column; align-items: flex-start !important; }
+            .modal-content { padding: 1.5rem; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header" style="align-items: flex-start;">
+            <div>
+                <a href="index.html" style="text-decoration: none; color: var(--primary); font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">← Quay lại trang Đánh giá</a>
+                <h1>Danh Sách Ứng Viên Đã Đánh Giá</h1>
+            </div>
+            <button class="btn-export" onclick="exportSelected()" style="margin-top: 1.5rem;">📥 Xuất Excel Danh Sách Chọn</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell"><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
+                        <th>ID</th>
+                        <th>Tên Ứng Viên</th>
+                        <th>Người Phỏng Vấn</th>
+                        <th>Ngày PV</th>
+                        <th>Tổng Điểm</th>
+                        <th>Đánh Giá Vị Trí</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="8" style="text-align: center;">Đang tải dữ liệu...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Kết quả Modal -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div class="results-header">
+                <h2>Chi Tiết Kết Quả Phỏng Vấn</h2>
+                <p id="resCandidateInfo" style="font-size: 1.1rem; color: var(--text-muted);"></p>
+                <div id="finalConclusion" style="margin-top: 1rem; font-size: 1.25rem; font-weight: 700; color: var(--success); background-color: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #bbf7d0; display: inline-block;">
+                </div>
+            </div>
+
+            <div class="results-table-wrapper">
+                <table class="results-table" id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; width: 35%;">Tiêu Chí</th>
+                            <th class="col-staff">Staff</th>
+                            <th class="col-supervisor">Supervisor</th>
+                            <th class="col-leader">Leader</th>
+                            <th class="col-senior">Senior Leader</th>
+                            <th class="col-candidate">Điểm Ứng Viên</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody">
+                        <!-- Thêm bằng JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="row-total">
+                            <td style="text-align: left;">TỔNG ĐIỂM</td>
+                            <td class="col-staff" id="totStaff">47</td>
+                            <td class="col-supervisor" id="totSup">62</td>
+                            <td class="col-leader" id="totLead">75</td>
+                            <td class="col-senior" id="totSen">88</td>
+                            <td class="col-candidate" id="totCan">0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="radarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nạp dữ liệu từ data.js để có định nghĩa bảng nếu cần -->
+    <script src="data.js"></script>
+    <script>
+        let candidatesData = [];
+        let myChart = null;
+
+        const benchmarks = {
+            "T1": { Staff: 20, Supervisor: 26, Leader: 30, Senior: 33 },
+            "T2": { Staff: 14, Supervisor: 17, Leader: 20, Senior: 23 },
+            "T3": { Staff: 12, Supervisor: 17, Leader: 22, Senior: 28 },
+            "T4": { Staff: 1, Supervisor: 2, Leader: 3, Senior: 4 }
+        };
+
+        async function loadData() {
+            try {
+                const res = await fetch('/api/candidates');
+                if(!res.ok) throw new Error('Network error');
+                candidatesData = await res.json();
+                renderTable();
+            } catch (err) {
+                document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">Không thể kết nối đến server. Vui lòng kiểm tra server.js đã chạy.</td></tr>`;
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            if(candidatesData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center;">Chưa có dữ liệu nào trong database.</td></tr>`;
+                return;
+            }
+
+            candidatesData.forEach((c, index) => {
+                const tr = document.createElement('tr');
+                const date = new Date(c.InterviewDate).toLocaleDateString('vi-VN');
+                tr.innerHTML = `
+                    <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" value="${c.Id}"></td>
+                    <td>#${c.Id}</td>
+                    <td style="font-weight: 500;">${c.CandidateName}</td>
+                    <td>${c.InterviewerName}</td>
+                    <td>${date}</td>
+                    <td style="font-weight: 600; color: var(--primary);">${c.TotalScore}</td>
+                    <td><span class="level-badge">${c.FinalLevel}</span></td>
+                    <td><button class="btn-view" onclick="viewDetails(${index})">Xem chi tiết</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleAll(source) {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(cb => cb.checked = source.checked);
+        }
+
+        async function exportSelected() {
+            const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            if(selectedIds.length === 0) {
+                Swal.fire({ title: 'Chưa chọn ứng viên!', text: 'Vui lòng chọn ít nhất một ứng viên để xuất Excel!', icon: 'warning', confirmButtonColor: '#2563eb' });
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ candidateIds: selectedIds })
+                });
+
+                if(!res.ok) throw new Error('Lỗi xuất file');
+
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Danh_Sach_Ket_Qua_Ung_Vien.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                Swal.fire({ title: 'Thành công!', text: 'Đã tải xuống file Excel.', icon: 'success', confirmButtonColor: '#10b981' });
+            } catch (err) {
+                Swal.fire({ title: 'Lỗi xuất Excel!', text: err.message, icon: 'error', confirmButtonColor: '#ef4444' });
+            }
+        }
+
+        function viewDetails(index) {
+            const c = candidatesData[index];
+            const date = new Date(c.InterviewDate).toLocaleDateString('vi-VN');
+            
+            document.getElementById('resultsModal').style.display = 'block';
+            document.getElementById('resCandidateInfo').textContent = `Ứng viên: ${c.CandidateName} | Người PV: ${c.InterviewerName} | Ngày: ${date}`;
+            document.getElementById('finalConclusion').innerHTML = `Đánh giá chung: Phù hợp với mức <span style="color: var(--primary); text-transform: uppercase;">${c.FinalLevel}</span>`;
+
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '';
+
+            const scores = { "T1": c.T1_Score, "T2": c.T2_Score, "T3": c.T3_Score, "T4": c.T4_Score };
+            
+            const chartLabels = [];
+            const chartDataCandidate = [];
+            const chartDataStaff = [];
+            const chartDataSupervisor = [];
+            const chartDataLeader = [];
+            const chartDataSenior = [];
+
+            for (const t_key in benchmarks) {
+                const b = benchmarks[t_key];
+                const cScore = scores[t_key];
+                const tangName = competencyData[t_key] ? competencyData[t_key].name : t_key;
+
+                chartLabels.push(tangName);
+                chartDataCandidate.push(cScore);
+                chartDataStaff.push(b.Staff);
+                chartDataSupervisor.push(b.Supervisor);
+                chartDataLeader.push(b.Leader);
+                chartDataSenior.push(b.Senior);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="text-align: left; font-weight: 600;">${tangName}</td>
+                    <td>${b.Staff}</td>
+                    <td>${b.Supervisor}</td>
+                    <td>${b.Leader}</td>
+                    <td>${b.Senior}</td>
+                    <td class="col-candidate">${cScore}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            document.getElementById('totCan').textContent = c.TotalScore;
+
+            // Draw Chart
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            
+            myChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        {
+                            label: 'Ứng viên',
+                            data: chartDataCandidate,
+                            backgroundColor: 'rgba(37, 99, 235, 0.4)',
+                            borderColor: 'rgba(37, 99, 235, 1)',
+                            pointBackgroundColor: 'rgba(37, 99, 235, 1)',
+                            borderWidth: 3,
+                        },
+                        {
+                            label: 'Staff',
+                            data: chartDataStaff,
+                            backgroundColor: 'rgba(37, 99, 235, 0)',
+                            borderColor: '#2563eb',
+                            borderWidth: 1,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'Supervisor',
+                            data: chartDataSupervisor,
+                            backgroundColor: 'rgba(220, 38, 38, 0)',
+                            borderColor: '#dc2626',
+                            borderWidth: 1,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'Leader',
+                            data: chartDataLeader,
+                            backgroundColor: 'rgba(217, 119, 6, 0)',
+                            borderColor: '#d97706',
+                            borderWidth: 1,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'Senior Leader',
+                            data: chartDataSenior,
+                            backgroundColor: 'rgba(22, 163, 74, 0)',
+                            borderColor: '#16a34a',
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('resultsModal').style.display = 'none';
+        }
+
+        // Load init
+        loadData();
+    </script>
+</body>
+</html>
