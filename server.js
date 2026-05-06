@@ -19,7 +19,7 @@ const apiAuth = (req, res, next) => {
 
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    if (username === 'admin' && password === 'ChamDiem@2026!$') {
+    if (username === 'MLG2' && password === 'MLG2@2026') {
         return res.json({ success: true, token: 'DGUV_SECRET_TOKEN_2026' });
     }
     res.status(401).json({ success: false, message: 'Sai tài khoản hoặc mật khẩu' });
