@@ -44,7 +44,7 @@ app.post('/api/candidates', async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5);
             `;
             for (const d of details) {
-                await client.query(insertDetailQuery, [candidateId, d.tangName, d.competencyName, d.score, d.description]);
+                await client.query(insertDetailQuery, [candidateId, d.TangName, d.CompetencyName, d.Score, d.Description]);
             }
         }
 
