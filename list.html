@@ -328,15 +328,15 @@
 
             candidatesData.forEach((c, index) => {
                 const tr = document.createElement('tr');
-                const date = new Date(c.InterviewDate).toLocaleDateString('vi-VN');
+                const date = new Date(c.interviewdate).toLocaleDateString('vi-VN');
                 tr.innerHTML = `
-                    <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" value="${c.Id}"></td>
-                    <td>#${c.Id}</td>
-                    <td style="font-weight: 500;">${c.CandidateName}</td>
-                    <td>${c.InterviewerName}</td>
+                    <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" value="${c.id}"></td>
+                    <td>#${c.id}</td>
+                    <td style="font-weight: 500;">${c.candidatename}</td>
+                    <td>${c.interviewername}</td>
                     <td>${date}</td>
-                    <td style="font-weight: 600; color: var(--primary);">${c.TotalScore}</td>
-                    <td><span class="level-badge">${c.FinalLevel}</span></td>
+                    <td style="font-weight: 600; color: var(--primary);">${c.totalscore}</td>
+                    <td><span class="level-badge">${c.finallevel}</span></td>
                     <td><button class="btn-view" onclick="viewDetails(${index})">Xem chi tiết</button></td>
                 `;
                 tbody.appendChild(tr);
@@ -383,16 +383,16 @@
 
         function viewDetails(index) {
             const c = candidatesData[index];
-            const date = new Date(c.InterviewDate).toLocaleDateString('vi-VN');
+            const date = new Date(c.interviewdate).toLocaleDateString('vi-VN');
             
             document.getElementById('resultsModal').style.display = 'block';
-            document.getElementById('resCandidateInfo').textContent = `Ứng viên: ${c.CandidateName} | Người PV: ${c.InterviewerName} | Ngày: ${date}`;
-            document.getElementById('finalConclusion').innerHTML = `Đánh giá chung: Phù hợp với mức <span style="color: var(--primary); text-transform: uppercase;">${c.FinalLevel}</span>`;
+            document.getElementById('resCandidateInfo').textContent = `Ứng viên: ${c.candidatename} | Người PV: ${c.interviewername} | Ngày: ${date}`;
+            document.getElementById('finalConclusion').innerHTML = `Đánh giá chung: Phù hợp với mức <span style="color: var(--primary); text-transform: uppercase;">${c.finallevel}</span>`;
 
             const tbody = document.getElementById('resultsTableBody');
             tbody.innerHTML = '';
 
-            const scores = { "T1": c.T1_Score, "T2": c.T2_Score, "T3": c.T3_Score, "T4": c.T4_Score };
+            const scores = { "T1": c.t1_score, "T2": c.t2_score, "T3": c.t3_score, "T4": c.t4_score };
             
             const chartLabels = [];
             const chartDataCandidate = [];
@@ -425,7 +425,7 @@
                 tbody.appendChild(tr);
             }
 
-            document.getElementById('totCan').textContent = c.TotalScore;
+            document.getElementById('totCan').textContent = c.totalscore;
 
             // Draw Chart
             const ctx = document.getElementById('radarChart').getContext('2d');

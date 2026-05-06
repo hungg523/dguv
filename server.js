@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const sql = require('mssql');
+const { Pool } = require('pg');
 const excel = require('exceljs');
 
 const app = express();
@@ -12,86 +12,81 @@ app.use(bodyParser.json());
 // Phục vụ các file tĩnh (HTML, CSS, JS) trong thư mục hiện tại
 app.use(express.static(__dirname));
 
-const dbConfig = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME,
-    options: {
-        encrypt: false,
-        trustServerCertificate: true 
+// Khởi tạo kết nối PostgreSQL bằng chuỗi connection string
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Bắt buộc cho đa số cloud database (Neon, Supabase)
     }
-};
+});
 
 app.post('/api/candidates', async (req, res) => {
+    const client = await pool.connect();
     try {
         const { candidateName, interviewerName, interviewDate, t1_score, t2_score, t3_score, t4_score, total_score, final_level, details } = req.body;
         
-        await sql.connect(dbConfig);
-        
-        // Check if table exists, if not, wait. They should run init.sql
-        const result = await sql.query`
-            INSERT INTO Candidates (CandidateName, InterviewerName, InterviewDate, T1_Score, T2_Score, T3_Score, T4_Score, TotalScore, FinalLevel)
-            OUTPUT INSERTED.Id
-            VALUES (${candidateName}, ${interviewerName}, ${interviewDate}, ${t1_score}, ${t2_score}, ${t3_score}, ${t4_score}, ${total_score}, ${final_level})
-        `;
-        
-        const candidateId = result.recordset[0].Id;
+        await client.query('BEGIN');
 
-        // Insert details
+        // Insert vào bảng Candidates
+        const insertCandidateQuery = `
+            INSERT INTO Candidates (CandidateName, InterviewerName, InterviewDate, T1_Score, T2_Score, T3_Score, T4_Score, TotalScore, FinalLevel)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING Id;
+        `;
+        const candidateValues = [candidateName, interviewerName, interviewDate, t1_score, t2_score, t3_score, t4_score, total_score, final_level];
+        const result = await client.query(insertCandidateQuery, candidateValues);
+        const candidateId = result.rows[0].id;
+
+        // Insert vào bảng CandidateDetails
         if (details && details.length > 0) {
-            const ps = new sql.PreparedStatement();
-            ps.input('candidateId', sql.Int);
-            ps.input('competencyName', sql.NVarChar(255));
-            ps.input('score', sql.Int);
-            ps.input('description', sql.NVarChar(sql.MAX));
-            
-            await ps.prepare(`INSERT INTO CandidateDetails (CandidateId, CompetencyName, Score, Description) VALUES (@candidateId, @competencyName, @score, @description)`);
-            
-            for (let detail of details) {
-                await ps.execute({
-                    candidateId: candidateId,
-                    competencyName: detail.competencyName,
-                    score: detail.score,
-                    description: detail.description
-                });
+            const insertDetailQuery = `
+                INSERT INTO CandidateDetails (CandidateId, TangName, CompetencyName, Score, Description)
+                VALUES ($1, $2, $3, $4, $5);
+            `;
+            for (const d of details) {
+                await client.query(insertDetailQuery, [candidateId, d.tangName, d.competencyName, d.score, d.description]);
             }
-            await ps.unprepare();
         }
-        
-        res.status(200).json({ success: true, id: candidateId });
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: 'Lưu dữ liệu thành công!', id: candidateId });
     } catch (err) {
-        console.error(err);
+        await client.query('ROLLBACK');
+        console.error('Lỗi khi lưu DB:', err);
         res.status(500).json({ success: false, message: err.message });
     } finally {
-        // sql.close(); // Not closing so connection pool can be reused, or could close.
+        client.release();
     }
 });
 
 app.get('/api/candidates', async (req, res) => {
     try {
-        await sql.connect(dbConfig);
-        const result = await sql.query`SELECT * FROM Candidates ORDER BY InterviewDate DESC, Id DESC`;
-        res.json(result.recordset);
+        const result = await pool.query('SELECT * FROM Candidates ORDER BY InterviewDate DESC, Id DESC');
+        res.json(result.rows);
     } catch (err) {
-        console.error(err);
+        console.error('Lỗi khi lấy DB:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// Endpoint to export selected candidates
 app.post('/api/export', async (req, res) => {
     try {
         const { candidateIds } = req.body;
         if (!candidateIds || candidateIds.length === 0) {
-            return res.status(400).json({ success: false, message: 'No candidates selected' });
+            return res.status(400).json({ success: false, message: 'Danh sách ID trống' });
         }
 
-        await sql.connect(dbConfig);
-        const idsString = candidateIds.join(',');
+        // Tạo chuỗi placeholders $1, $2, ...
+        const placeholders = candidateIds.map((_, i) => `$${i + 1}`).join(',');
+        const query = `
+            SELECT * FROM Candidates 
+            WHERE Id IN (${placeholders}) 
+            ORDER BY InterviewDate DESC, Id DESC
+        `;
         
-        const candidates = await sql.query(`SELECT * FROM Candidates WHERE Id IN (${idsString})`);
-        
+        const result = await pool.query(query, candidateIds);
+        const candidates = result.rows;
+
         const workbook = new excel.Workbook();
         const sheet = workbook.addWorksheet('Danh Sách Ứng Viên');
         
@@ -145,19 +140,19 @@ app.post('/api/export', async (req, res) => {
         ];
 
         // Add rows
-        candidates.recordset.forEach((row, index) => {
-            const dateStr = new Date(row.InterviewDate).toLocaleDateString('vi-VN');
+        candidates.forEach((row, index) => {
+            const dateStr = new Date(row.interviewdate).toLocaleDateString('vi-VN');
             sheet.addRow({
                 stt: index + 1,
-                name: row.CandidateName,
-                interviewer: row.InterviewerName,
+                name: row.candidatename,
+                interviewer: row.interviewername,
                 date: dateStr,
-                t1: row.T1_Score,
-                t2: row.T2_Score,
-                t3: row.T3_Score,
-                t4: row.T4_Score,
-                total: row.TotalScore,
-                level: row.FinalLevel
+                t1: row.t1_score,
+                t2: row.t2_score,
+                t3: row.t3_score,
+                t4: row.t4_score,
+                total: row.totalscore,
+                level: row.finallevel
             });
         });
 
@@ -199,12 +194,13 @@ app.post('/api/export', async (req, res) => {
         });
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename=' + 'Danh_Sach_Ung_Vien.xlsx');
-        
+        res.setHeader('Content-Disposition', 'attachment; filename=KetQua.xlsx');
+
         await workbook.xlsx.write(res);
         res.end();
+
     } catch (err) {
-        console.error(err);
+        console.error('Lỗi khi xuất excel:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
