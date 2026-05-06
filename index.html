@@ -376,7 +376,7 @@
 </head>
 
 <body>
-
+    <div id="appContent" style="display: none;">
     <header>
         <a href="list.html" style="position: absolute; top: 1.5rem; right: 1.5rem; background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; transition: background 0.2s; border: 1px solid rgba(255,255,255,0.3);">
             📋 Xem Danh Sách
@@ -476,6 +476,7 @@
             </div>
         </div>
     </div>
+    </div> <!-- Close appContent -->
 
     <!-- Nạp dữ liệu từ data.js -->
     <script src="data.js"></script>
@@ -798,9 +799,10 @@
                         if (score > 0) {
                             scores[t_key] += score;
                             details.push({
-                                competencyName: comp.name,
-                                score: score,
-                                description: comp.levels[score] ? comp.levels[score].description : ""
+                                TangName: tang.name,
+                                CompetencyName: comp.name,
+                                Score: score,
+                                Description: comp.levels[score] ? comp.levels[score].description : ""
                             });
                         }
                     });
@@ -823,9 +825,21 @@
             try {
                 const res = await fetch('/api/candidates', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-auth-token': localStorage.getItem('dguv_token')
+                    },
                     body: JSON.stringify(payload)
                 });
+
+                if (res.status === 401) {
+                    localStorage.removeItem('dguv_token');
+                    await Swal.fire('Lỗi', 'Hết phiên đăng nhập. Vui lòng đăng nhập lại.', 'error');
+                    btn.innerHTML = '☁️ Lưu lên Server';
+                    btn.disabled = false;
+                    document.getElementById('appContent').style.display = 'none';
+                    return await promptLogin();
+                }
 
                 const data = await res.json();
                 if (data.success) {
@@ -843,6 +857,57 @@
                 btn.disabled = false;
             }
         }
+        const promptLogin = async () => {
+            const { value: formValues } = await Swal.fire({
+                title: 'Đăng Nhập Hệ Thống',
+                html:
+                    '<input id="swal-input1" class="swal2-input" placeholder="Tên đăng nhập (admin)">' +
+                    '<input id="swal-input2" class="swal2-input" type="password" placeholder="Mật khẩu">',
+                focusConfirm: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Đăng Nhập',
+                confirmButtonColor: '#2563eb',
+                preConfirm: () => {
+                    return [
+                        document.getElementById('swal-input1').value,
+                        document.getElementById('swal-input2').value
+                    ]
+                }
+            });
+
+            if (formValues) {
+                try {
+                    const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: formValues[0], password: formValues[1] })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        localStorage.setItem('dguv_token', data.token);
+                        Swal.fire({title: 'Thành công!', text: 'Đăng nhập thành công', icon: 'success', timer: 1500, showConfirmButton: false});
+                        document.getElementById('appContent').style.display = 'block';
+                        return data.token;
+                    } else {
+                        await Swal.fire('Lỗi', 'Sai tài khoản hoặc mật khẩu!', 'error');
+                        return await promptLogin();
+                    }
+                } catch (e) {
+                    await Swal.fire('Lỗi', 'Không thể kết nối đến server.', 'error');
+                    return await promptLogin();
+                }
+            }
+        };
+
+        window.onload = async () => {
+            const token = localStorage.getItem('dguv_token');
+            if (!token) {
+                await promptLogin();
+            } else {
+                document.getElementById('appContent').style.display = 'block';
+            }
+        };
     </script>
 </body>
 

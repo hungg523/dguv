@@ -217,14 +217,17 @@
 </head>
 
 <body>
-
+    <div id="appContent" style="display: none;">
     <div class="container">
         <div class="header" style="align-items: flex-start;">
             <div>
                 <a href="index.html" style="text-decoration: none; color: var(--primary); font-weight: 600; display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">← Quay lại trang Đánh giá</a>
                 <h1>Danh Sách Ứng Viên Đã Đánh Giá</h1>
             </div>
-            <button class="btn-export" onclick="exportSelected()" style="margin-top: 1.5rem;">📥 Xuất Excel Danh Sách Chọn</button>
+            <div style="display: flex; gap: 10px; margin-top: 1.5rem; flex-wrap: wrap;">
+                <button class="btn-delete" onclick="deleteSelected()" style="background-color: #ef4444; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 500; cursor: pointer; transition: background 0.2s;">🗑️ Xóa Đã Chọn</button>
+                <button class="btn-export" onclick="exportSelected()" style="margin-top: 0;">📥 Xuất Excel Danh Sách Chọn</button>
+            </div>
         </div>
 
         <div style="overflow-x: auto;">
@@ -292,6 +295,7 @@
             </div>
         </div>
     </div>
+    </div>
 
     <!-- Nạp dữ liệu từ data.js để có định nghĩa bảng nếu cần -->
     <script src="data.js"></script>
@@ -308,7 +312,15 @@
 
         async function loadData() {
             try {
-                const res = await fetch('/api/candidates');
+                const res = await fetch('/api/candidates', {
+                    headers: { 'x-auth-token': localStorage.getItem('dguv_token') }
+                });
+                if(res.status === 401) {
+                    localStorage.removeItem('dguv_token');
+                    document.getElementById('appContent').style.display = 'none';
+                    await promptLogin();
+                    return loadData();
+                }
                 if(!res.ok) throw new Error('Network error');
                 candidatesData = await res.json();
                 renderTable();
@@ -360,10 +372,17 @@
             try {
                 const res = await fetch('/api/export', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-auth-token': localStorage.getItem('dguv_token')
+                    },
                     body: JSON.stringify({ candidateIds: selectedIds })
                 });
 
+                if(res.status === 401) {
+                    Swal.fire('Lỗi', 'Hết phiên đăng nhập. Vui lòng tải lại trang.', 'error');
+                    return;
+                }
                 if(!res.ok) throw new Error('Lỗi xuất file');
 
                 const blob = await res.blob();
@@ -378,6 +397,55 @@
                 Swal.fire({ title: 'Thành công!', text: 'Đã tải xuống file Excel.', icon: 'success', confirmButtonColor: '#10b981' });
             } catch (err) {
                 Swal.fire({ title: 'Lỗi xuất Excel!', text: err.message, icon: 'error', confirmButtonColor: '#ef4444' });
+            }
+        }
+
+        async function deleteSelected() {
+            const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            if(selectedIds.length === 0) {
+                Swal.fire({ title: 'Chưa chọn!', text: 'Vui lòng chọn ít nhất một ứng viên để xóa.', icon: 'warning', confirmButtonColor: '#2563eb' });
+                return;
+            }
+
+            const confirm = await Swal.fire({
+                title: 'Bạn có chắc chắn?',
+                text: `Bạn chuẩn bị xóa ${selectedIds.length} ứng viên. Hành động này không thể hoàn tác!`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Có, Xóa luôn!',
+                cancelButtonText: 'Hủy'
+            });
+
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch('/api/candidates', {
+                    method: 'DELETE',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-auth-token': localStorage.getItem('dguv_token')
+                    },
+                    body: JSON.stringify({ candidateIds: selectedIds })
+                });
+
+                if(res.status === 401) {
+                    Swal.fire('Lỗi', 'Hết phiên đăng nhập. Vui lòng tải lại trang.', 'error');
+                    return;
+                }
+                
+                const data = await res.json();
+                if(data.success) {
+                    Swal.fire('Đã xóa!', 'Xóa thành công các ứng viên đã chọn.', 'success');
+                    loadData(); // Tải lại bảng
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (err) {
+                Swal.fire('Lỗi', err.message, 'error');
             }
         }
 
@@ -499,8 +567,59 @@
             document.getElementById('resultsModal').style.display = 'none';
         }
 
+        const promptLogin = async () => {
+            const { value: formValues } = await Swal.fire({
+                title: 'Đăng Nhập Hệ Thống',
+                html:
+                    '<input id="swal-input1" class="swal2-input" placeholder="Tên đăng nhập (admin)">' +
+                    '<input id="swal-input2" class="swal2-input" type="password" placeholder="Mật khẩu">',
+                focusConfirm: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Đăng Nhập',
+                confirmButtonColor: '#2563eb',
+                preConfirm: () => {
+                    return [
+                        document.getElementById('swal-input1').value,
+                        document.getElementById('swal-input2').value
+                    ]
+                }
+            });
+
+            if (formValues) {
+                try {
+                    const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: formValues[0], password: formValues[1] })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        localStorage.setItem('dguv_token', data.token);
+                        Swal.fire({title: 'Thành công!', text: 'Đăng nhập thành công', icon: 'success', timer: 1500, showConfirmButton: false});
+                        document.getElementById('appContent').style.display = 'block';
+                        return data.token;
+                    } else {
+                        await Swal.fire('Lỗi', 'Sai tài khoản hoặc mật khẩu!', 'error');
+                        return await promptLogin();
+                    }
+                } catch (e) {
+                    await Swal.fire('Lỗi', 'Không thể kết nối đến server.', 'error');
+                    return await promptLogin();
+                }
+            }
+        };
+
         // Load init
-        loadData();
+        window.onload = async () => {
+            const token = localStorage.getItem('dguv_token');
+            if (!token) {
+                await promptLogin();
+            } else {
+                document.getElementById('appContent').style.display = 'block';
+            }
+            loadData();
+        };
     </script>
 </body>
 </html>

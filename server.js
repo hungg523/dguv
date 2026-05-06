@@ -9,6 +9,22 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Auth Middleware
+const apiAuth = (req, res, next) => {
+    if (req.headers['x-auth-token'] === 'DGUV_SECRET_TOKEN_2026') {
+        return next();
+    }
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+};
+
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === 'admin' && password === 'ChamDiem@2026!$') {
+        return res.json({ success: true, token: 'DGUV_SECRET_TOKEN_2026' });
+    }
+    res.status(401).json({ success: false, message: 'Sai tài khoản hoặc mật khẩu' });
+});
+
 // Phục vụ các file tĩnh (HTML, CSS, JS) trong thư mục hiện tại
 app.use(express.static(__dirname));
 
@@ -20,7 +36,7 @@ const pool = new Pool({
     }
 });
 
-app.post('/api/candidates', async (req, res) => {
+app.post('/api/candidates', apiAuth, async (req, res) => {
     const client = await pool.connect();
     try {
         const { candidateName, interviewerName, interviewDate, t1_score, t2_score, t3_score, t4_score, total_score, final_level, details } = req.body;
@@ -59,7 +75,7 @@ app.post('/api/candidates', async (req, res) => {
     }
 });
 
-app.get('/api/candidates', async (req, res) => {
+app.get('/api/candidates', apiAuth, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM Candidates ORDER BY InterviewDate DESC, Id DESC');
         res.json(result.rows);
@@ -69,7 +85,7 @@ app.get('/api/candidates', async (req, res) => {
     }
 });
 
-app.post('/api/export', async (req, res) => {
+app.post('/api/export', apiAuth, async (req, res) => {
     try {
         const { candidateIds } = req.body;
         if (!candidateIds || candidateIds.length === 0) {
@@ -205,7 +221,26 @@ app.post('/api/export', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+app.delete('/api/candidates', apiAuth, async (req, res) => {
+    try {
+        const { candidateIds } = req.body;
+        if (!candidateIds || candidateIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'Danh sách ID trống' });
+        }
+        
+        // Vì bảng CandidateDetails có ON DELETE CASCADE, nên xóa bên Candidates nó sẽ tự xóa bản ghi con
+        const placeholders = candidateIds.map((_, i) => `$${i + 1}`).join(',');
+        const query = `DELETE FROM Candidates WHERE Id IN (${placeholders})`;
+        await pool.query(query, candidateIds);
+        
+        res.json({ success: true, message: 'Đã xóa thành công' });
+    } catch (err) {
+        console.error('Lỗi khi xóa:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+const PORT = process.env.PORT || 3111;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
