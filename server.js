@@ -172,6 +172,60 @@ app.post('/api/export', apiAuth, async (req, res) => {
             });
         });
 
+        // TÍNH VÀ THÊM DÒNG ĐIỂM TRUNG BÌNH
+        if (candidates.length > 0) {
+            let sumT1 = 0, sumT2 = 0, sumT3 = 0, sumT4 = 0, sumTotal = 0;
+            candidates.forEach(row => {
+                sumT1 += row.t1_score || 0;
+                sumT2 += row.t2_score || 0;
+                sumT3 += row.t3_score || 0;
+                sumT4 += row.t4_score || 0;
+                sumTotal += row.totalscore || 0;
+            });
+            
+            const n = candidates.length;
+            const avgTotal = parseFloat((sumTotal / n).toFixed(1));
+            
+            // Tính Vị trí phù hợp dựa trên điểm trung bình tổng
+            let finalLevel = "Staff";
+            let minDiff = Math.abs(avgTotal - 47);
+            
+            const checkLevel = (target, level) => {
+                const diff = Math.abs(avgTotal - target);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    finalLevel = level;
+                }
+            };
+            
+            checkLevel(62, "Supervisor");
+            checkLevel(75, "Leader");
+            checkLevel(88, "Senior Leader");
+
+            const avgRow = sheet.addRow({
+                stt: '',
+                name: 'ĐIỂM TRUNG BÌNH CÁC ỨNG VIÊN ĐƯỢC CHỌN',
+                interviewer: '',
+                date: '',
+                t1: parseFloat((sumT1 / n).toFixed(1)),
+                t2: parseFloat((sumT2 / n).toFixed(1)),
+                t3: parseFloat((sumT3 / n).toFixed(1)),
+                t4: parseFloat((sumT4 / n).toFixed(1)),
+                total: avgTotal,
+                level: finalLevel
+            });
+            
+            avgRow.font = { bold: true, color: { argb: 'FF2563EB' } };
+            avgRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE2E8F0' }
+            };
+            
+            sheet.mergeCells(`B${avgRow.number}:D${avgRow.number}`);
+            avgRow.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+
         // Styling candidates table
         headerRow.eachCell((cell) => {
             cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
